@@ -1,0 +1,8 @@
+# File .bat HARUS ber-line-ending CRLF, kalau tidak cmd.exe gagal mem-parsing
+# blok if(...) dan jendelanya tertutup tanpa pesan apa pun.
+#
+# '-text' = jangan normalisasi sama sekali; simpan byte-nya apa adanya di repo.
+# Ini perlu karena raw.githubusercontent.com menyajikan blob mentah - kalau blob-nya
+# ber-LF, siapa pun yang men-download .bat lewat raw akan dapat file rusak.
+*.bat -text
+*.cmd -text
