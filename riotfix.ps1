@@ -187,6 +187,64 @@ function Read-Findings {
 }
 
 
+# -- sxstrace: alat resmi Windows yang disebut di kotak error itu sendiri -------
+# Kotak error yang kamu lihat berbunyi "...use the command-line sxstrace.exe tool
+# for more detail". Ini menjalankannya untukmu.
+#
+# Dipakai kalau Event Log tidak memberi jawaban. sxstrace merekam SAAT aplikasi
+# dijalankan, jadi ia bisa menangkap komponen yang gagal walaupun Windows tidak
+# sempat mencatatnya di Event Log. Hasilnya BUKTI, bukan tebakan - dan menebak
+# padahal buktinya bisa diambil itu tidak bisa dibenarkan.
+function Get-SxsTraceFindings {
+    if (-not (Get-Command sxstrace.exe -ErrorAction SilentlyContinue)) {
+        Warn "sxstrace.exe tidak ada di Windows ini - dilewati."
+        return $null
+    }
+    $etl = Join-Path $env:TEMP 'riotfix-sxs.etl'
+    $txt = Join-Path $env:TEMP 'riotfix-sxs.txt'
+    Remove-Item $etl, $txt -Force -ErrorAction SilentlyContinue
+
+    Head "Menjalankan sxstrace (alat resmi Windows yang disebut di kotak error itu)"
+    Say "Ini merekam apa yang terjadi PERSIS saat Valorant gagal dibuka."
+    try {
+        Start-Process sxstrace.exe -ArgumentList 'trace', "-logfile:$etl" `
+                      -WindowStyle Hidden -ErrorAction Stop | Out-Null
+    } catch {
+        Warn "tidak bisa memulai sxstrace: $($_.Exception.Message)"
+        return $null
+    }
+    Start-Sleep -Seconds 2
+    Ok  "Perekaman DIMULAI."
+    Write-Host ""
+    Say "SEKARANG: buka Valorant / Riot Client seperti biasa, sampai kotak error"
+    Say "'side-by-side configuration' itu MUNCUL. Tidak perlu ditutup dulu."
+    Write-Host ""
+    Read-Host "  Sudah muncul kotak errornya? Tekan Enter untuk berhenti merekam" | Out-Null
+
+    Start-Process sxstrace.exe -ArgumentList 'stoptrace' -Wait -WindowStyle Hidden `
+                  -ErrorAction SilentlyContinue | Out-Null
+    Start-Sleep -Seconds 1
+    if (-not (Test-Path $etl)) { Warn "sxstrace tidak menghasilkan rekaman."; return $null }
+
+    Say "Membaca hasil rekaman..."
+    Start-Process sxstrace.exe -ArgumentList 'parse', "-logfile:$etl", "-outfile:$txt" `
+                  -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+    if (-not (Test-Path $txt)) { Warn "sxstrace gagal membaca rekamannya."; return $null }
+
+    # PENTING: hasil sxstrace memuat SEMUA komponen yang diperiksa - termasuk yang
+    # BERHASIL dimuat. Kalau semuanya dibaca, komponen sehat ikut dianggap rusak.
+    # Jadi ambil HANYA baris ERROR (yang gagal).
+    $lines = Get-Content $txt -ErrorAction SilentlyContinue
+    $bad   = @($lines | Where-Object { $_ -match 'ERROR' })
+    if ($bad.Count -eq 0) {
+        Warn "sxstrace tidak menemukan kegagalan - mungkin errornya belum sempat muncul."
+        return $null
+    }
+    Ok "sxstrace menemukan $($bad.Count) baris kegagalan."
+    Read-Findings -Events @([pscustomobject]@{ Message = ($bad -join "`n") })
+}
+
+
 # Menampilkan pesan asli dari Windows, apa adanya. Ini "keterangan mentah" -
 # kalau skrip ini tidak mengerti masalahnya, minimal kamu punya bukti yang bisa
 # dikirim ke orang yang mengerti, bukan sekadar "gagal".
@@ -324,10 +382,37 @@ function Invoke-RiotFix {
             return
         }
         Warn "Tidak ada catatan error 'SideBySide' sama sekali dalam 30 hari terakhir."
-        Say  "Kemungkinan catatannya sudah terhapus. Kita coba perbaikan paling umum."
-        $guessed = $true
-        $missing = foreach ($v in $FALLBACK) { @{ Ver = $v; Arch = 'x86'; Riot = $false } }
-        foreach ($m in $missing) { Say "DUGAAN : Microsoft.$($m.Ver).CRT" }
+        Say  "Kemungkinan catatannya sudah terhapus."
+
+        # Jangan menebak dulu. Ada alat resmi yang bisa memberi jawaban PASTI -
+        # dan kotak error itu sendiri yang menyuruh memakainya. Pakai dulu.
+        $trace = Get-SxsTraceFindings
+        if ($trace) {
+            $diag    = $trace
+            $missing = @($trace.Missing)
+            $others  = @($trace.Others)
+            if ($diag.ExePath) { Say "Riot Client terdeteksi di: $($diag.ExePath)" }
+            foreach ($m in $missing) {
+                Bad "BERMASALAH : Microsoft.$($m.Ver).CRT [$($m.Arch)]  -> BISA diperbaiki skrip ini"
+            }
+            foreach ($o in $others) {
+                Warn "BERMASALAH : $($o.Name) [$($o.Arch)]  -> BUKAN Visual C++"
+            }
+            if ($missing.Count -eq 0 -and $others.Count -eq 0) {
+                Warn "sxstrace merekam kegagalan, tapi polanya tidak dikenali skrip ini."
+                Show-Raw -Findings $diag
+                Head "Berhenti di sini - tidak ada yang diubah."
+                Say  "Kirim file log ini ke temanmu."
+                return
+            }
+        } else {
+            # sxstrace pun tidak memberi jawaban. BARU sekarang boleh menebak -
+            # dan harus dikatakan terus terang bahwa ini tebakan.
+            Warn "sxstrace juga tidak memberi jawaban. Terpaksa memakai dugaan."
+            $guessed = $true
+            $missing = foreach ($v in $FALLBACK) { @{ Ver = $v; Arch = 'x86'; Riot = $false } }
+            foreach ($m in $missing) { Say "DUGAAN : Microsoft.$($m.Ver).CRT" }
+        }
     }
 
     # Untuk tiap versi yang bermasalah, pasang x86 DAN x64 sekaligus.

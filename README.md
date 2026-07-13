@@ -50,7 +50,11 @@ menjelaskannya, **jangan jalankan.** Itu saran yang jujur.
 
 1. **Membaca Event Log Windows** untuk tahu komponen mana persisnya yang bermasalah.
    Tidak menebak.
-2. Menampilkan temuannya, lalu **minta persetujuanmu** sebelum lanjut.
+2. Kalau Event Log tidak memberi jawaban, menjalankan **`sxstrace.exe`** — alat resmi
+   Windows yang disebut di kotak error itu sendiri (*"use the command-line sxstrace.exe
+   tool for more detail"*). Alat itu merekam apa yang terjadi persis saat Valorant gagal
+   dibuka, jadi hasilnya **bukti**, bukan tebakan.
+3. Menampilkan temuannya, lalu **minta persetujuanmu** sebelum lanjut.
 3. Men-download Visual C++ Redistributable yang sesuai, **langsung dari server resmi
    Microsoft** (`microsoft.com` / `aka.ms`) — bukan dari server pribadi siapa pun.
 4. **Memeriksa tanda tangan digital** file itu. Kalau ternyata bukan asli buatan
