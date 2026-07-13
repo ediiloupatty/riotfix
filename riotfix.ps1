@@ -478,15 +478,24 @@ function Invoke-RiotFix {
 # Log-nya ditaruh di DESKTOP, bukan di sebelah skrip. Sebabnya: skrip ini sering
 # dijalankan dari folder sementara (%TEMP%) yang tidak akan pernah kamu temukan.
 # Desktop = tempat yang pasti kelihatan.
+#
+# PENTING: hanya proses Administrator yang menulis log. Skrip ini dijalankan DUA
+# KALI - sekali sebagai user biasa (yang cuma memanggil UAC lalu selesai), dan
+# sekali sebagai Administrator (yang benar-benar bekerja). Kalau keduanya menulis
+# ke file yang sama, proses pertama mengunci file itu, transcript di proses
+# Administrator GAGAL dan diam-diam pindah ke %TEMP% - sehingga log yang berisi
+# diagnosa sebenarnya tidak akan pernah ditemukan.
 $LogFile = $null
-foreach ($dir in @([Environment]::GetFolderPath('Desktop'), $env:TEMP)) {
-    if (-not $dir) { continue }
-    try {
-        $try = Join-Path $dir 'riotfix-log.txt'
-        Start-Transcript -Path $try -Force | Out-Null
-        $LogFile = $try
-        break
-    } catch { }
+if (Test-Admin) {
+    foreach ($dir in @([Environment]::GetFolderPath('Desktop'), $env:TEMP)) {
+        if (-not $dir) { continue }
+        try {
+            $try = Join-Path $dir 'riotfix-log.txt'
+            Start-Transcript -Path $try -Force | Out-Null
+            $LogFile = $try
+            break
+        } catch { }
+    }
 }
 
 try {
