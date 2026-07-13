@@ -6,3 +6,8 @@
 # ber-LF, siapa pun yang men-download .bat lewat raw akan dapat file rusak.
 *.bat -text
 *.cmd -text
+
+# PowerShell sendiri sebenarnya menerima LF, tapi .ps1 ini dimaksudkan untuk
+# DIBACA orang di Notepad sebelum dijalankan. CRLF membuatnya tampil rapi di
+# editor Windows mana pun, jadi tidak ada alasan menyisakan keraguan.
+*.ps1 -text
